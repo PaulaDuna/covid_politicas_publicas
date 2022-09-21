@@ -1,0 +1,414 @@
+---
+title: "Casos de Covid-19 y políticas públicas en la República Argentina"
+subtitle: "Introducción a la Ciencia de Datos en Salud - Visualizaciones y comunicación"
+author: "Paula Dunayevich"
+date: "29 de junio de 2022"
+output:
+ html_document:
+    fig_height: 4
+    fig_width: 5
+    toc: true
+    toc_depth: 4
+    toc_float:
+      toc_collapsed: true
+    number_sections: true
+    theme: paper
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, message = FALSE, results = 'asis', fig.align = 'center')
+
+```
+
+```{css, echo = FALSE}
+.header-section-number::after {content: ".";}
+p {font-size: 16px;}
+li {font-size: 16px;}
+
+```
+
+# Covid-19 en la República Argentina - Políticas públicas
+
+## Introducción
+
+La [COVID-19](https://www.who.int/es/emergencies/diseases/novel-coronavirus-2019/question-and-answers-hub/q-a-detail/coronavirus-disease-covid-19) es la enfermedad causada por el nuevo coronavirus conocido como SARS-CoV-2. La Organización Mundial de la Salud (OMS) [tuvo noticia por primera vez](https://www.who.int/es/news/item/27-04-2020-who-timeline---covid-19) de la existencia de este nuevo virus el 31 de diciembre de 2019, al ser informada de un grupo de casos de «neumonía vírica» que se habían declarado en Wuhan (República Popular China). A partir de allí y frente a la evidencia de su propagación a nivel global, [la OMS declaró la pandemia](https://www.paho.org/es/noticias/11-3-2020-oms-caracteriza-covid-19-como-pandemia).
+
+El lunes 2 de marzo se confirmó el [primer caso de SARS-CoV-2 en la Argentina](https://www.argentina.gob.ar/noticias/salud-confirma-el-primer-caso-de-coronavirus-en-el-pais). Se trató de una persona de 43 años de sexo masculino, que había estado entre el 19 y el 21 de febrero en Milán y entre el 22 y el 29 del mismo mes en otras ciudades de Italia y España e ingresó al país el domingo primero de marzo, fecha en la que realizó la consulta médica al presentar fiebre, tos y dolor de garganta.
+
+A partir de ese momento se tomaron [diversas medidas](https://www.argentina.gob.ar/coronavirus/medidas-gobierno): la regulación de la presencialidad en el ámbito educativo y laboral, el uso de barbijo en lugares públicos, el testeo de casos sospechosos y contactos estrechos,  la vacunación de la población y la restricción a la libre circulación en el marco del [aislamiento social preventivo y obligatorio](https://www.argentina.gob.ar/noticias/el-gobierno-nacional-decreto-el-aislamiento-social-preventivo-y-obligatorio) dispuesto por el Gobierno Nacional a partir del día 20 de marzo de 2020.
+
+El 24 de diciembre de 2020 llegó a la Argentina el [primer lote con 300.000 dosis de la vacuna Sputnik V](https://www.argentina.gob.ar/noticias/llegaron-al-pais-las-primeras-vacunas-sputnik-v#:~:text=Luego%20de%20la%20aprobaci%C3%B3n%20de,es%20el%20personal%20de%20salud). El cargamento llegó desde Rusia a través de un vuelo de Aerolíneas Argentina.
+
+## Objetivo
+
+En este trabajo analizaremos algunas de las medidas tomadas por el Gobierno Nacional en relación al testeo, la vacunación y la presencialidad en centros educativos y en el ámbito laboral en la República Argentina.
+
+## Análisis
+
+### Bibliotecas
+
+Cargamos las bibliotecas necesarias para el análisis.
+
+```{r bibliotecas}
+library(tidyverse)
+library(zoo)
+library(doBy)
+library(ggnewscale)
+library(gridExtra)
+library(highcharter)
+
+```
+
+### Datos
+
+Para este trabajo utilizaremos bases de datos del sitio web [Our World in Data](https://ourworldindata.org/) al día 
+19 de junio de 2022.
+
+### Casos de COVID-19, testeos y positividad
+
+En esta parte del análisis utilizaremos la [base de datos de COVID-19](https://github.com/owid/covid-19-data/tree/master/public/data) (owid-covid-data.csv) y la [base de datos de testeo](https://ourworldindata.org/covid-testing-contact-tracing) (covid-19-testing-policy.csv).
+
+La idea es analizar la política de testeo implementada por la República Argentina. ¿Depende ésta de indicadores como el número de casos o la positividad (porcentaje de tests positivos sobre el total de tests realizados)? ¿Es similar entre países de la región?
+
+Para ello vamos a utilizar un gráfico que muestra para la Argentina y algunos de sus países limítrofes la cantidad de casos de COVID-19 por millón de habitantes en función del tiempo (haciendo el promedio móvil cada 7 días para suavizar los datos). En el mismo gráfico, vamos a colorear la curva en función de la positividad y a indicar por encima de la misma la política de testeo adoptada, la cual se visualizará asimismo en distintos colores.
+
+> Cabe aclarar que la tasa de positividad es relevante a la hora de ajustar las medidas adoptadas en respuesta al brote de COVID-19. Tal como  indican la [Organización Mundial de la salud](https://apps.who.int/iris/bitstream/handle/10665/332073/WHO-2019-nCoV-Adjusting_PH_measures-Criteria-2020.1-eng.pdf?sequence=1&isAllowed=y) y la [Universidad Johns Hopkins](https://publichealth.jhu.edu/2020/covid-19-testing-understanding-the-percent-positive), una tasa de positividad por encima del 5% es considerada lo suficientemente "alta" como para justificar la implementación de medidas de restricción.
+
+```{r casos, positividad y testeo, fig.width = 9, fig.height = 8, fig.cap = 'Promedio móvil cada 7 días de los casos de COVID-19 por millón de habitantes en función del tiempo, coloreando por positividad del testeo e indicando la política de testeo adoptada por encima de la curva, para Argentina y algunos de sus países limítrofes.'}
+df_covid <- read.csv2(file = 'data/owid-covid-data.csv', sep = ',', dec = '.')
+df_test <- read.csv2(file = 'data/covid-19-testing-policy.csv', sep = ',', dec = '.')
+
+df_covid_data <- df_covid %>%
+  filter(location %in% c('Argentina', 'Chile', 'Uruguay')) %>%
+  mutate(date = as.Date(as.character(date), format = '%Y-%m-%d'),
+         new_cases = case_when(is.na(new_cases) ~ 0,
+                               TRUE ~ new_cases),
+         new_tests = case_when(is.na(new_tests) ~ 0,
+                               TRUE ~ new_tests),
+         positividad = case_when(new_tests == 0 ~ 0,
+                                 TRUE ~ new_cases / new_tests * 100)) %>%
+  select('location', 'date', 'new_cases', 'positividad', 'population') %>%
+  rename(pais = location,
+         fecha = date,
+         casos = new_cases,
+         poblacion = population)
+
+df_covid_data <- transformBy(~pais, data = df_covid_data, casos_prom_7 = rollmeanr(casos, 7, fill = 0))
+df_covid_data <- transformBy(~pais, data = df_covid_data, positividad_prom_7 = rollmeanr(positividad, 7, fill = 0))
+
+df_covid_data <- df_covid_data %>%
+  mutate(casos_prom_7_pobl = casos_prom_7 / poblacion * 1000000,
+         positividad_grupo = case_when(between(positividad_prom_7, 0, 5) ~ '0-5%',
+                                       between(positividad_prom_7, 5, 15) ~ '5-15%',
+                                       between(positividad_prom_7, 15, 25) ~ '15-25%',
+                                       between(positividad_prom_7, 25, 50) ~ '25-50%',
+                                       between(positividad_prom_7, 50, 100) ~ '50-100%',
+                                       TRUE ~ 'Sin datos')) %>%
+  select('pais', 'fecha', 'casos_prom_7_pobl', 'positividad_grupo')
+
+df_test_data <- df_test %>%
+  select('Entity', 'Day', 'testing_policy') %>%
+  filter(Entity %in% c('Argentina', 'Chile', 'Uruguay')) %>%
+  mutate(Day = as.Date(as.character(Day), format = '%Y-%m-%d'),
+        testing_policy = case_when(testing_policy == 0 ~ 'Sin política de testeo',
+                                   testing_policy == 1 ~ 'Sintomáticos de grupos claves',
+                                   testing_policy == 2 ~ 'Cualquiera con síntomas',
+                                   testing_policy == 3 ~ 'Testeo abierto al público',
+                                   TRUE ~ 'Sin datos')) %>%
+  rename(pais = Entity,
+         fecha = Day,
+         politica_testeo = testing_policy)
+
+ggplot(subset(df_covid_data), aes(x = fecha, y = casos_prom_7_pobl)) +
+  geom_line(aes(color = as.factor(positividad_grupo), group = 1), size = 2, lineend = "round") +
+  facet_grid(pais~.) +
+  scale_colour_manual(values = c('#3C50B1', '#0095EF', '#A224AD', '#F31D64', '#FDAB9F', '#999999'), breaks = c('0-5%', '5-15%', '15-25%', '25-50%', '50-100%', 'Sin datos'), name = 'Positividad') +
+  new_scale_color() +
+  geom_line(data = subset(df_test_data), aes(x = fecha, y = 3750, group = 1, color = as.factor(politica_testeo)), size = 3, lineend = "round") +
+  scale_colour_manual(values = c('#cccccc', '#ffc425', '#f37735', '#d11141'), breaks = c('Sin política de testeo', 'Sintomáticos de grupos claves', 'Cualquiera con síntomas', 'Testeo abierto al público', 'Sin datos'), name = 'Política de testeo') +
+  scale_x_date(date_breaks = "2 months", limits = as.Date(c('2019-12-01','2022-06-25'))) +
+  scale_y_continuous(limits = c(-250, 4000), breaks = c(0, 1000, 2000, 3000, 4000)) +
+  labs(x = "Fecha",
+       y = "Casos de COVID-19 por millón de habitantes\n(promedio móvil de 7 días)",
+       title = "Casos de COVID-19, positividad y políticas de testeo",
+       subtitle = "Datos de Our World in Data") +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_line(colour = 'lightgrey', size = 0.2),
+        panel.grid.minor = element_line(colour = 'lightgrey', size = 0.1),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 12),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size = 14),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        axis.text = element_text(size = 10),
+        legend.key = element_rect(fill = "white"),
+        plot.title = element_text(size = 16),
+        plot.subtitle = element_text(size = 12),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10))
+
+rm(df_covid_data, df_test, df_test_data)
+
+```
+
+A partir de este gráfico podemos ver que la Argentina superó en numerosas ocasiones el umbral del 5% de positividad, lo cual sugiere una tasa de positividad alta (según los parámetros mencionados anteriormente) que amerita la implementación de medidas. Llegó incluso a superar el 50% de positividad en el pico de la tercer ola de COVID-19, lo cual puede indicar también que el número de casos en esa etapa se encuentra subestimado.
+
+Por otra parte, podemos ver que inicialmente la política de testeos en la Argentina respondió a la cantidad de casos y la positividad (incrementándose los grupos objetivo en marzo de 2020 y luego en octubre del mismo año), para luego permanecer constante sin tener en cuenta el comportamiento de estos indicadores.
+
+Por su parte, Chile comenzó testeando cada vez a más grupos para luego volver a adoptar una política de testeo más conservadora, haciéndolo sólo a grupos claves con síntomas.
+
+Por el contrario, Uruguay mantuvo la mayoría del tiempo una política de testeo abierta al público, con la excepción de las dos etapas en las cuales su tasa de positividad superó el 20% (segunda y tercera ola de COVID-19), tomando la decisión de disminuir la cantidad de personas que calificaban para ser testeadas.
+
+Este gráfico indica que distintos países tomaron medidas diferentes respecto al testeo a lo largo de la pandemia, ya sea como política pública activa o por falta de personal y/o recursos.
+
+### Vacunación contra el COVID-19
+
+Para esta parte del análisis vamos a volver a utilizar la [base de datos de COVID-19](https://github.com/owid/covid-19-data/tree/master/public/data).
+
+Esta vez queremos comparar en la República Argentina y sus países limítrofes el porcentaje de la población que ha sido vacunada con el esquema completo (1 o 2 dosis dependiendo el tipo de vacuna), el esquema incompleto (1 dosis en el caso de vacunas que requieren 2) y el porcentaje que además ha sido vacunado con dosis de refuerzo (personas con esquema inicial de vacunación completo previamente). ¿Cómo resultó la campaña de vacunación hasta el momento? ¿Existe una correlación entre la aplicación del esquema inicial de vacunación y la dosis de refuerzo?
+
+```{r vacunacion, fig.width = 9, fig.height = 6, fig.cap = 'Porcentaje de la población vacunada con el esquema completo o incompleto de la vacuna contra el COVID-19 y porcentaje de la población vacunada con dosis de refuerzo, para Argentina, sus países limítrofes y el mundo en su conjunto.'}
+df_vac_data <- df_covid %>%
+  filter(location %in% c('Argentina', 'Chile', 'Bolivia', 'Brazil', 'Paraguay', 'Uruguay', 'World')) %>%
+  group_by(location, population) %>%
+  summarise(poblacion_vacunada = max(people_vaccinated, na.rm = TRUE),
+            poblacion_completamente_vacunada = max(people_fully_vaccinated, na.rm = TRUE),
+            poblacion_vacunada_refuerzo = max(total_boosters, na.rm = TRUE)) %>%
+  mutate(poblacion_vacunada_porc = poblacion_vacunada / population * 100,
+         poblacion_completamente_vacunada_porc = round(poblacion_completamente_vacunada / population * 100, 0),
+         poblacion_vacunada_parcial_porc = round(poblacion_vacunada_porc - poblacion_completamente_vacunada_porc, 0),
+         poblacion_vacunada_refuerzo_porc = round(poblacion_vacunada_refuerzo / population * 100, 0),
+         location = case_when(location == 'Brazil' ~ 'Brasil',
+                              location == 'World' ~ 'Mundo',
+                              TRUE ~ location))%>%
+  ungroup() %>%
+  select('location', 'poblacion_completamente_vacunada_porc', 'poblacion_vacunada_parcial_porc', 'poblacion_vacunada_refuerzo_porc') %>%
+  rename(pais = location) 
+
+df_vac_data <- df_vac_data %>%
+  select('pais', 'poblacion_completamente_vacunada_porc', 'poblacion_vacunada_parcial_porc', 'poblacion_vacunada_refuerzo_porc') %>%
+  pivot_longer(cols = c('poblacion_completamente_vacunada_porc', 'poblacion_vacunada_parcial_porc', 'poblacion_vacunada_refuerzo_porc'),
+               names_to = "tipo",
+               values_to = "pobl") %>% 
+  group_by(pais) %>%
+  mutate(tipo_vacuna = case_when(tipo == 'poblacion_completamente_vacunada_porc' ~ 'Esquema completo',
+                                 tipo == 'poblacion_vacunada_parcial_porc' ~ 'Esquema incompleto',
+                                 tipo == 'poblacion_vacunada_refuerzo_porc' ~ 'Refuerzo',
+                                 TRUE ~ tipo)) %>%
+  ungroup() %>%
+  select('pais', 'pobl', 'tipo_vacuna')
+
+plot1 <- ggplot(subset(df_vac_data, tipo_vacuna %in% c('Esquema completo', 'Esquema incompleto')), aes(x = pobl, y = reorder(pais, pobl), fill = tipo_vacuna)) +
+  geom_col(position = position_stack(reverse = TRUE)) +
+  scale_x_continuous(breaks = c(0, 25, 50, 75, 100)) +
+  coord_cartesian(xlim = c(0, 100)) +
+  geom_text(aes(label = paste(round(pobl, 0), '%', sep = '')), position = position_stack(vjust = 0.5, reverse=TRUE)) +
+  scale_fill_manual(labels = c("Completo", "Incompleto", ""), values = c("#56B4E9", "#999999", "white"), name = "Esquema de vacunación")+
+  theme(panel.background = element_blank(),
+        panel.grid.major.x = element_line(colour = 'lightgrey', size = 0.2),
+        panel.grid.minor.x = element_line(colour = 'lightgrey', size = 0.1),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 12),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 10),
+        legend.key = element_rect(fill = "white"),
+        plot.title = element_text(size = 16),
+        plot.subtitle = element_text(size = 12),
+        legend.position="top",
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10)) +
+  labs(x = "Población (%)",
+       y = "País",
+       title = "Población vacunada contra el COVID-19",
+       subtitle = "Datos de Our World in Data")
+
+plot2 <- ggplot(subset(df_vac_data, tipo_vacuna %in% c('Refuerzo')), aes(x = pobl, y = reorder(pais, pobl), fill = tipo_vacuna)) +
+  geom_col() +
+  scale_x_continuous(breaks = c(0, 25, 50, 75, 100, 125)) +
+  coord_cartesian(xlim = c(0, 125)) +
+  geom_text(aes(label = paste(round(pobl, 0), '%', sep = '')), position = position_stack(vjust = 0.5, reverse=TRUE)) +
+  scale_fill_manual(labels = c("Refuerzo"), values = c("#E69F00"), name = "Esquema de vacunación")+
+  theme(panel.background = element_blank(),
+        panel.grid.major.x = element_line(colour = 'lightgrey', size = 0.2),
+        panel.grid.minor.x = element_line(colour = 'lightgrey', size = 0.1),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 12),
+        axis.ticks = element_blank(),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_blank(),
+        axis.text = element_text(size = 10),
+        legend.key = element_rect(fill = "white"),
+        plot.title = element_text(size = 16),
+        plot.subtitle = element_text(size = 12),
+        legend.position="top",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10),
+        plot.caption = element_text(hjust = 0, size = 10)) +
+  labs(x = "Población (%)",
+       y = "País",
+       title = "",
+       subtitle = "")
+
+layout_matrix <- matrix(c(1, 1, 1, 2, 2), ncol = 5, byrow = TRUE)
+grid.arrange(plot1, plot2, ncol = 2, nrow = 1, layout_matrix = layout_matrix)
+
+rm(df_vac_data, plot1, plot2, layout_matrix)
+
+```
+
+> Los valores mostrados en este gráfico corresponden al último dato disponible en la base de datos de **Our World in Data** al día 19 de junio de 2022.
+
+En este gráfico podemos ver que Argentina se encuentra en segundo lugar en cuanto al porcentaje de la población vacunada con al menos una dosis de la vacuna contra el COVID-19, entre los países de la región. Con el 90% de su población vacunada con al menos una dosis y el 82% con el esquema completo, se encuentra muy por encima del valor correspondiente al mundo en su conjunto que posee tan solo el 66% de su población vacunada con al menos una dosis.
+
+Al analizar los valores correspondientes a las dosis de refuerzo, encontramos que Argentina pasa a ocupar el tercer lugar con valores muy por debajo de Chile y Uruguay, que ocupan el primer y segundo lugar respectivamente.
+
+Sin embargo, dejando de lado que Argentina y Uruguay cambian de posición uno con el otro al analizar la aplicación de dosis de refuerzo (lo mismo que ocurre con Bolivia y Paraguay), parece haber una buena correlación entre la aplicación del esquema inicial de vacunación y la dosis de refuerzo, especialmente si tenemos en cuenta que esos países poseen un porcentaje similar de población vacunada con al menos una dosis.
+
+> Nótese que el valor porcentual de población vacunada con dosis de refuerzo correspondiente a Chile es de 123%. Esto podría deberse a que se contabilizó la dosis y no la persona vacunada, dándose el caso de una persona con más de una dosis.
+
+### Presencialidad en el ámbito educativo y laboral
+
+En esta sección queremos analizar las medidas tomadas por el Gobierno Nacional respecto de la presencialidad en el ámbito educativo y laboral en las distintas etapas de la pandemia. ¿Se tomaron las mismas medidas durante las 3 olas de COVID-19? ¿Cómo influyó la campaña de vacunación en las políticas públicas adoptadas respecto a la presencialidad?
+
+Para responder estas preguntas vamos a utilizar la [base de datos de COVID-19](https://github.com/owid/covid-19-data/tree/master/public/data) y las bases de datos de políticas públicas respecto al [cierre de escuelas](https://ourworldindata.org/grapher/school-closures-covid) (school-closures-covid.csv) y al [cierre de lugares de trabajo](https://ourworldindata.org/grapher/workplace-closures-covid) (workplace-closures-covid.csv).
+
+```{r presencialidad ambito educativo y laboral, fig.cap = 'Promedio móvil cada 7 días de los casos de COVID-19 por millón de habitantes en función del tiempo, coloreando por políticas públicas respecto de la presencialidad en el ámbito educativo y laboral en la República Argentina.'}
+df_escuelas <- read.csv2(file = 'data/school-closures-covid.csv', sep = ',', dec = '.')
+df_trabajos <- read.csv2(file = 'data/workplace-closures-covid.csv', sep = ',', dec = '.')
+
+df_covid_data <- df_covid %>%
+  filter(location %in% c('Argentina')) %>%
+  mutate(date = as.Date(as.character(date), format = '%Y-%m-%d'),
+         new_cases = case_when(is.na(new_cases) ~ 0,
+                               TRUE ~ new_cases),
+         casos_prom_7 = rollmeanr(new_cases, 7, fill = 0),
+         casos_prom_7_pobl = round(casos_prom_7 / population * 1000000, 0)) %>%
+  rename(fecha = date) %>%
+  select('fecha', 'casos_prom_7_pobl')
+
+df_escuelas_data <- df_escuelas %>%
+  filter(Entity %in% c('Argentina')) %>%
+  select('Day', 'school_closures') %>%
+  mutate(Day = as.Date(as.character(Day), format = '%Y-%m-%d'),
+         school_closures = case_when(school_closures == 0 ~ 'Sin medidas',
+                                     school_closures == 1 ~ 'Recomendado',
+                                     school_closures == 2 ~ 'Requerido para algunos',
+                                     school_closures == 3 ~ 'Obligatorio para todos',
+                                     TRUE ~ 'sin datos'),
+         school_closures = factor(school_closures, levels = c('Sin medidas', 'Recomendado', 'Requerido para algunos', 'Obligatorio para todos'))) %>%
+  rename(fecha = Day,
+         escuelas = school_closures)
+
+df_trabajos_data <- df_trabajos %>%
+  filter(Entity %in% c('Argentina')) %>%
+  select('Day', 'workplace_closures') %>%
+  mutate(Day = as.Date(as.character(Day), format = '%Y-%m-%d'),
+         workplace_closures = case_when(workplace_closures == 0 ~ 'Sin medidas',
+                                        workplace_closures == 1 ~ 'Recomendado',
+                                        workplace_closures == 2 ~ 'Requerido para algunos',
+                                        workplace_closures == 3 ~ 'Obligatorio salvo esenciales',
+                                        TRUE ~ 'sin datos'),
+         workplace_closures = factor(workplace_closures, levels = c('Sin medidas', 'Recomendado', 'Requerido para algunos', 'Obligatorio salvo esenciales'))) %>%
+  rename(fecha = Day,
+         trabajos = workplace_closures)
+
+df_covid_data <- inner_join(df_covid_data, df_escuelas_data, by = c('fecha'))
+df_covid_data <- inner_join(df_covid_data, df_trabajos_data, by = c('fecha'))
+
+df_vac_data <- df_covid %>%
+  filter(location %in% c('Argentina')) %>%
+  mutate(date = as.Date(as.character(date), format = '%Y-%m-%d'),
+         vacuna = case_when(is.na(people_vaccinated) ~ 0,
+                            TRUE ~ round(people_vaccinated / population * 100, 0))) %>%
+  rename(fecha = date) %>%
+  select('fecha', 'vacuna')
+
+df_covid_data <- inner_join(df_covid_data, df_vac_data, by = c('fecha'))
+
+highcharter::hw_grid(
+  
+  hchart(df_covid_data,
+       type = 'point',
+       hcaes(x = fecha,
+             y = casos_prom_7_pobl,
+             group = escuelas)) %>%
+  hc_colors(c("#E69F00", "#56B4E9", "#999999", "#009E73")) %>%
+  hc_yAxis(title = list(text = "Casos de COVID-19 por millón de habitantes <br/> (promedio móvil de 7 días)",
+                        style = list(fontSize = "16px",
+                                     color = "black")),
+           labels = list(style = list(fontSize = "12px",
+                                      color = "black"))) %>%
+  hc_xAxis(title = list(text = "Fecha",
+                        style = list(fontSize = "16px",
+                                     color = "black")),
+           labels = list(format = '{value: %Y-%m-%d}',
+                         style = list(fontSize = "12px",
+                                      color = "black")),
+           type = "datetime") %>%
+  hc_legend(title = list(text = "Cierre de establecimientos educativos",
+                         style = list(fontWeight = 'regular',
+                                      fontSize = '14px',
+                                      color = "black")),
+            verticalAlign = "bottom",
+            itemStyle = list(fontWeight = 'regular',
+                             fontSize = '12px',
+                             color = "black")) %>%
+  hc_tooltip(pointFormat = "Fecha: {point.x:%Y-%m-%d} <br> Casos: {point.y} <br> Vacunación: {point.vacuna}%") %>%
+  hc_title(text = "Casos de COVID-19 y presencialidad en establecimientos educativos y en el ámbito laboral",
+           align = "left",
+           style = list(fontSize = "18px",
+                        color = "black")) %>%
+  hc_subtitle(text = "Datos de Our World in Data",
+              align = "left",
+              style = list(fontSize = "14px",
+                           color = "black")),
+  
+  hchart(df_covid_data,
+       type = 'point',
+       hcaes(x = fecha,
+             y = casos_prom_7_pobl,
+             group = trabajos)) %>%
+  hc_colors(c("#E69F00", "#56B4E9", "#999999", "#009E73")) %>%
+  hc_yAxis(title = list(text = "Casos de COVID-19 por millón de habitantes <br/> (promedio móvil de 7 días)",
+                        style = list(fontSize = "16px",
+                                     color = "black")),
+           labels = list(style = list(fontSize = "12px",
+                                      color = "black"))) %>%
+  hc_xAxis(title = list(text = "Fecha",
+                        style = list(fontSize = "16px",
+                                     color = "black")),
+           labels = list(format = '{value: %Y-%m-%d}',
+                         style = list(fontSize = "12px",
+                                      color = "black")),
+           type = "datetime") %>%
+  hc_legend(title = list(text = "Trabajo remoto",
+                         style = list(fontWeight = 'regular',
+                                      fontSize = '14px',
+                                      color = "black")),
+            verticalAlign = "bottom",
+            itemStyle = list(fontWeight = 'regular',
+                             fontSize = '12px',
+                             color = "black")) %>%
+  hc_tooltip(pointFormat = "Fecha: {point.x:%Y-%m-%d} <br> Casos: {point.y} <br> Vacunación: {point.vacuna}%"),
+
+  ncol = 1)
+
+rm(df_covid, df_covid_data, df_escuelas, df_escuelas_data, df_trabajos, df_trabajos_data, df_vac_data)
+
+```
+
+En estos gráficos podemos ver que las restricciones en cuanto a la presencialidad en establecimientos educativos se mantuvieron por más tiempo que las restricciones en el ámbito laboral. Esta tendencia se mantuvo a grandes rasgos durante todo el período analizado, con excepción de la etapa que comenzó con el inicio de clases del último ciclo lectivo en el cual se adoptó una política de presencialidad en el ámbito educativo, mientras que el trabajo remoto continúa siendo recomendado.
+
+Asimismo, encontramos que las políticas respecto de la presencialidad fueron variando en los períodos correspondientes a las tres grandes "olas de COVID-19".
+
+* Durante la primer ola, que comprende gran parte del 2020 y el rebrote en el verano del 2021, se mantuvo el cierre de los establecimientos educativos y el trabajo remoto fue obligatorio o requerido para distintos sectores de la población. Es decir, las medidas fueron restrictivas.
+
+* Durante la segunda ola, que transcurrió entre los meses de marzo y septiembre del 2021, la política respecto del cierre de los establecimientos educativos comenzó siendo recomendada, luego obligatoria, requerida para algunos y recomendada una vez más, siguiendo la forma de la curva de casos, mientras que el trabajo remoto fue requerido para algunos sectores durante todo este período.
+
+* La tercer ola, ocurrida durante el verano de 2021 a 2022, se caracterizó por medidas recomendadas tanto en el ámbito educativo como en el laboral.
+
+Podemos ver que en las tres olas el Gobierno Nacional adoptó medidas muy distintas, lo cual puede explicarse en parte por el momento en el cual se encontraba la campaña de vacunación en cada etapa, ya que el nivel de restricción respecto a la presencialidad correlaciona con la cantidad de habitantes vacunados contra el COVID-19.
+
