@@ -8,7 +8,7 @@ Para visitar la página del repositorio, haga clic en [este enlace](https://paul
 
 ## Contexto
 
-Este proyecto fue realizado en el marco del trabajo final para el módulo de Visualización y Comunicación de la Información del curso de posgrado [Introducción a la Ciencia de Datos en Salud](https://www.fmed.uba.ar/innovacion/hacemos) de la Facultad de Medicina de la Universidad de Buenos Aires.
+Este proyecto fue realizado en el marco del trabajo final para el módulo de **Visualización y Comunicación de la Información** del curso de posgrado [Introducción a la Ciencia de Datos en Salud](https://www.fmed.uba.ar/innovacion/hacemos) de la Facultad de Medicina de la Universidad de Buenos Aires.
 
 ## Objetivo
 
