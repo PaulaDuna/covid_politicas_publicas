@@ -4,7 +4,7 @@ Este proyecto consiste en un breve análisis respecto de algunas de las polític
 
 ## Link
 
-Para visitar la página del repositorio, haga clic en [este enlace](https://pauladuna.github.io/covid-public-policies/).
+Para visitar la página del repositorio, haga clic en [este enlace](https://github.com/PaulaDuna/data-viz-government-response-to-covid.git).
 
 ## Contexto
 
